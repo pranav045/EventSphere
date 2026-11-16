@@ -104,7 +104,6 @@ fun ProfileScreen(
                 actions = {
                     IconButton(
                         onClick = {
-                            auth.signOut()
                             onLogout()
                         }
                     ) {

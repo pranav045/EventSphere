@@ -1,4 +1,3 @@
-
 package com.example.eventsphere.navigation
 
 import android.os.Build
@@ -14,6 +13,7 @@ import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -43,6 +43,8 @@ import com.example.eventsphere.data.CampusEvent
 import com.example.eventsphere.screens.admin.AdminDashboardScreen
 import com.example.eventsphere.screens.admin.AdminQrCheckInScreen
 import com.example.eventsphere.screens.auth.AccessDeniedScreen
+import com.example.eventsphere.screens.auth.AuthScreen
+import com.example.eventsphere.screens.chat.ChatbotScreen
 import com.example.eventsphere.screens.event.CreateEventScreen
 import com.example.eventsphere.screens.event.EventDetailsScreen
 import com.example.eventsphere.screens.event.TicketScreen
@@ -63,6 +65,7 @@ private object Routes {
     const val EDIT = "edit/{eventId}"
     const val TICKET = "ticket/{eventId}"
     const val ADMIN_QR_SCANNER = "admin_qr_scanner"
+    const val CHATBOT = "chatbot"
 
     fun details(id: String) = "details/$id"
     fun edit(id: String) = "edit/$id"
@@ -81,10 +84,18 @@ fun AppNavigation() {
     var user by remember { mutableStateOf(auth.currentUser) }
     var isAdmin by remember { mutableStateOf(false) }
     var roleLoading by remember { mutableStateOf(true) }
-    var events by remember { mutableStateOf<List<CampusEvent>>(emptyList()) }
-    var registeredIds by remember { mutableStateOf<Set<String>>(emptySet()) }
 
+    var events by remember {
+        mutableStateOf<List<CampusEvent>>(emptyList())
+    }
+
+    var registeredIds by remember {
+        mutableStateOf<Set<String>>(emptySet())
+    }
+
+    // Firebase authentication listener
     DisposableEffect(auth) {
+
         val authListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
             user = firebaseAuth.currentUser
         }
@@ -96,6 +107,7 @@ fun AppNavigation() {
         }
     }
 
+    // Load user role, events and registrations
     DisposableEffect(user?.uid) {
 
         val uid = user?.uid
@@ -110,7 +122,9 @@ fun AppNavigation() {
         registeredIds = emptySet()
 
         if (uid == null) {
+
             roleLoading = false
+
         } else {
 
             roleListener = db.collection("users")
@@ -118,12 +132,20 @@ fun AppNavigation() {
                 .addSnapshotListener { snapshot, error ->
 
                     if (error != null) {
+
                         isAdmin = false
                         roleLoading = false
-                        Log.e("EventSphere", "Failed to load role", error)
+
+                        Log.e(
+                            "EventSphere",
+                            "Failed to load role",
+                            error
+                        )
+
                     } else {
 
-                        val role = snapshot?.getString("role")
+                        val role = snapshot
+                            ?.getString("role")
                             ?.trim()
                             ?.lowercase()
 
@@ -137,11 +159,18 @@ fun AppNavigation() {
                     }
                 }
 
+            // Events listener
             eventsListener = db.collection("events")
                 .addSnapshotListener { snapshot, error ->
 
                     if (error != null) {
-                        Log.e("EventSphere", "Failed to load events", error)
+
+                        Log.e(
+                            "EventSphere",
+                            "Failed to load events",
+                            error
+                        )
+
                     } else {
 
                         events = snapshot?.documents?.map { doc ->
@@ -154,8 +183,9 @@ fun AppNavigation() {
                                 category = doc.getString("category") ?: "Other",
                                 date = doc.getString("date").orEmpty(),
                                 time = doc.getString("time").orEmpty(),
-                                attendeeCount =
-                                    (doc.getLong("attendeeCount") ?: 0L).toInt(),
+                                attendeeCount = (
+                                        doc.getLong("attendeeCount") ?: 0L
+                                        ).toInt(),
                                 imageUrl = doc.getString("imageUrl").orEmpty(),
                                 ownerId = doc.getString("ownerId").orEmpty()
                             )
@@ -164,16 +194,19 @@ fun AppNavigation() {
                     }
                 }
 
+            // Registration listener
             registrationListener = db.collection("users")
                 .document(uid)
                 .addSnapshotListener { snapshot, error ->
 
                     if (error != null) {
+
                         Log.e(
                             "EventSphere",
                             "Failed to load registrations",
                             error
                         )
+
                     } else {
 
                         registeredIds = snapshot
@@ -198,45 +231,38 @@ fun AppNavigation() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
+    // Navigate to the correct screen after authentication
     LaunchedEffect(user?.uid, roleLoading, isAdmin) {
 
-        if (user == null) {
-            return@LaunchedEffect
-        }
+        if (user != null && !roleLoading) {
 
-        if (roleLoading) {
-            return@LaunchedEffect
-        }
-
-        val destination = if (isAdmin) Routes.ADMIN else Routes.HOME
-
-        if (currentRoute == Routes.ADMIN && !isAdmin) {
-
-            navController.navigate(Routes.HOME) {
-                popUpTo(Routes.ADMIN) {
-                    inclusive = true
-                }
-                launchSingleTop = true
+            val destination = if (isAdmin) {
+                Routes.ADMIN
+            } else {
+                Routes.HOME
             }
 
-        } else if (
-            currentRoute == null ||
-            currentRoute == Routes.HOME ||
-            currentRoute == Routes.ADMIN
-        ) {
+            navController.navigate(destination) {
 
-            if (currentRoute != destination) {
-                navController.navigate(destination) {
-                    popUpTo(navController.graph.startDestinationId) {
-                        inclusive = false
-                    }
-                    launchSingleTop = true
+                popUpTo(Routes.HOME) {
+                    inclusive = true
                 }
+
+                launchSingleTop = true
             }
         }
     }
 
-    if (user == null || roleLoading) {
+    // IMPORTANT: Show login screen when user is not authenticated
+    if (user == null) {
+
+        AuthScreen()
+
+        return
+    }
+
+    // Show loading screen while Firebase loads the user role
+    if (roleLoading) {
 
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -247,11 +273,7 @@ fun AppNavigation() {
             CircularProgressIndicator()
 
             Text(
-                text = if (user == null) {
-                    "Please sign in to continue"
-                } else {
-                    "Loading your account..."
-                },
+                text = "Loading your account...",
                 modifier = Modifier.padding(top = 16.dp)
             )
         }
@@ -260,16 +282,21 @@ fun AppNavigation() {
     }
 
     val mainRoutes = if (isAdmin) {
+
         setOf(
             Routes.HOME,
             Routes.PROFILE,
-            Routes.ADMIN
+            Routes.ADMIN,
+            Routes.CHATBOT
         )
+
     } else {
+
         setOf(
             Routes.HOME,
             Routes.MY_EVENTS,
-            Routes.PROFILE
+            Routes.PROFILE,
+            Routes.CHATBOT
         )
     }
 
@@ -280,6 +307,7 @@ fun AppNavigation() {
             when (currentRoute) {
 
                 Routes.ADMIN -> {
+
                     TopAppBar(
                         title = {
                             Text("Admin Dashboard")
@@ -302,6 +330,7 @@ fun AppNavigation() {
                 }
 
                 Routes.CREATE -> {
+
                     TopAppBar(
                         title = {
                             Text("Create Event")
@@ -322,6 +351,7 @@ fun AppNavigation() {
                 }
 
                 Routes.EDIT -> {
+
                     TopAppBar(
                         title = {
                             Text("Edit Event")
@@ -341,8 +371,7 @@ fun AppNavigation() {
                     )
                 }
 
-                else -> {
-                }
+                else -> {}
             }
         },
 
@@ -356,9 +385,6 @@ fun AppNavigation() {
                         selected = currentRoute == Routes.HOME,
                         onClick = {
                             navController.navigate(Routes.HOME) {
-                                popUpTo(Routes.HOME) {
-                                    inclusive = false
-                                }
                                 launchSingleTop = true
                             }
                         },
@@ -432,6 +458,24 @@ fun AppNavigation() {
                             }
                         )
                     }
+
+                    NavigationBarItem(
+                        selected = currentRoute == Routes.CHATBOT,
+                        onClick = {
+                            navController.navigate(Routes.CHATBOT) {
+                                launchSingleTop = true
+                            }
+                        },
+                        icon = {
+                            Icon(
+                                Icons.Default.SmartToy,
+                                contentDescription = "Chatbot"
+                            )
+                        },
+                        label = {
+                            Text("Chatbot")
+                        }
+                    )
                 }
             }
         }
@@ -444,6 +488,7 @@ fun AppNavigation() {
             modifier = Modifier.padding(innerPadding)
         ) {
 
+            // Home
             composable(Routes.HOME) {
 
                 HomeScreen(
@@ -479,6 +524,12 @@ fun AppNavigation() {
                 )
             }
 
+            // Chatbot
+            composable(Routes.CHATBOT) {
+                ChatbotScreen()
+            }
+
+            // My Events
             composable(Routes.MY_EVENTS) {
 
                 if (isAdmin) {
@@ -514,9 +565,11 @@ fun AppNavigation() {
                 }
             }
 
+            // Profile
             composable(Routes.PROFILE) {
 
                 ProfileScreen(
+
                     onBack = {
                         navController.popBackStack()
                     },
@@ -527,6 +580,7 @@ fun AppNavigation() {
                 )
             }
 
+            // Admin Dashboard
             composable(Routes.ADMIN) {
 
                 if (isAdmin) {
@@ -560,10 +614,12 @@ fun AppNavigation() {
                     )
 
                 } else {
+
                     AccessDeniedScreen()
                 }
             }
 
+            // Admin QR Scanner
             composable(Routes.ADMIN_QR_SCANNER) {
 
                 if (isAdmin) {
@@ -575,10 +631,12 @@ fun AppNavigation() {
                     )
 
                 } else {
+
                     AccessDeniedScreen()
                 }
             }
 
+            // Create Event
             composable(Routes.CREATE) {
 
                 if (isAdmin) {
@@ -590,10 +648,12 @@ fun AppNavigation() {
                     )
 
                 } else {
+
                     AccessDeniedScreen()
                 }
             }
 
+            // Edit Event
             composable(
                 route = Routes.EDIT,
                 arguments = listOf(
@@ -621,10 +681,12 @@ fun AppNavigation() {
                     )
 
                 } else {
+
                     AccessDeniedScreen()
                 }
             }
 
+            // Event Details
             composable(
                 route = Routes.DETAILS,
                 arguments = listOf(
@@ -652,7 +714,8 @@ fun AppNavigation() {
                             val uid = auth.currentUser?.uid
 
                             if (uid != null) {
-                                db.collection("users").document(uid)
+                                db.collection("users")
+                                    .document(uid)
                                     .update(
                                         "registeredEvents",
                                         com.google.firebase.firestore.FieldValue
@@ -665,7 +728,8 @@ fun AppNavigation() {
                             val uid = auth.currentUser?.uid
 
                             if (uid != null) {
-                                db.collection("users").document(uid)
+                                db.collection("users")
+                                    .document(uid)
                                     .update(
                                         "registeredEvents",
                                         com.google.firebase.firestore.FieldValue
@@ -682,7 +746,8 @@ fun AppNavigation() {
 
                         onDelete = {
                             if (isAdmin) {
-                                db.collection("events").document(event.id)
+                                db.collection("events")
+                                    .document(event.id)
                                     .delete()
 
                                 navController.popBackStack()
@@ -691,10 +756,12 @@ fun AppNavigation() {
                     )
 
                 } else {
+
                     Text("Event not found")
                 }
             }
 
+            // Ticket
             composable(
                 route = Routes.TICKET,
                 arguments = listOf(
@@ -717,6 +784,7 @@ fun AppNavigation() {
                     )
 
                 } else {
+
                     Text("Ticket not found")
                 }
             }

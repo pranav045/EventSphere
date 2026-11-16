@@ -13,3 +13,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+# Firebase local secrets
+functions/.secret.local
+functions/node_modules/
+google-services.json
