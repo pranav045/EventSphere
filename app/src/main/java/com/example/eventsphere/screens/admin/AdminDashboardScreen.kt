@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -46,6 +47,7 @@ fun AdminDashboardScreen(
     onEventClick: (CampusEvent) -> Unit,
     onEditEvent: (CampusEvent) -> Unit,
     onScanQr: () -> Unit,
+    onViewRatings: () -> Unit,
     isAdmin: Boolean
 ) {
     var firestoreEventCount by remember {
@@ -63,8 +65,9 @@ fun AdminDashboardScreen(
     fun refreshDashboard() {
         isLoading = true
 
-        FirebaseFirestore.getInstance()
-            .collection("events")
+        val db = FirebaseFirestore.getInstance()
+
+        db.collection("events")
             .get()
             .addOnSuccessListener { snapshot ->
                 firestoreEventCount = snapshot.size()
@@ -74,8 +77,7 @@ fun AdminDashboardScreen(
                 isLoading = false
             }
 
-        FirebaseFirestore.getInstance()
-            .collection("registrations")
+        db.collection("registrations")
             .get()
             .addOnSuccessListener { snapshot ->
                 registrationCount = snapshot.size()
@@ -202,6 +204,19 @@ fun AdminDashboardScreen(
                             contentDescription = null
                         )
                         Text(" Scan QR Ticket")
+                    }
+                }
+
+                item {
+                    OutlinedButton(
+                        onClick = onViewRatings,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null
+                        )
+                        Text(" View Student Ratings")
                     }
                 }
 

@@ -53,20 +53,29 @@ fun EventDetailsScreen(
     onRegister: () -> Unit = {},
     onCancelRegistration: () -> Unit = {},
     onEdit: () -> Unit = {},
-    onDelete: () -> Unit = {}
+    onDelete: () -> Unit = {},
+    onRateEvent: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
     var registeredState by remember(event.id, isRegistered) {
         mutableStateOf(isRegistered)
     }
-    var isLoading by remember { mutableStateOf(false) }
-    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    var isLoading by remember {
+        mutableStateOf(false)
+    }
+
+    var showDeleteDialog by remember {
+        mutableStateOf(false)
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Event Details") },
+                title = {
+                    Text("Event Details")
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -85,7 +94,9 @@ fun EventDetailsScreen(
                         }
 
                         IconButton(
-                            onClick = { showDeleteDialog = true }
+                            onClick = {
+                                showDeleteDialog = true
+                            }
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
@@ -97,6 +108,7 @@ fun EventDetailsScreen(
             )
         }
     ) { innerPadding ->
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -105,6 +117,7 @@ fun EventDetailsScreen(
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+
             Text(
                 text = event.title,
                 style = MaterialTheme.typography.headlineMedium,
@@ -124,6 +137,7 @@ fun EventDetailsScreen(
                     imageVector = Icons.Default.Event,
                     contentDescription = null
                 )
+
                 Text(
                     text = event.date,
                     modifier = Modifier.padding(start = 12.dp),
@@ -138,6 +152,7 @@ fun EventDetailsScreen(
                     imageVector = Icons.Default.LocationOn,
                     contentDescription = null
                 )
+
                 Text(
                     text = event.venue,
                     modifier = Modifier.padding(start = 12.dp),
@@ -168,6 +183,7 @@ fun EventDetailsScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             if (isAdmin) {
+
                 OutlinedButton(
                     onClick = onEdit,
                     modifier = Modifier.fillMaxWidth()
@@ -176,21 +192,26 @@ fun EventDetailsScreen(
                         imageVector = Icons.Default.Edit,
                         contentDescription = null
                     )
+
                     Text(" Edit Event")
                 }
+
             } else {
+
                 Button(
                     onClick = {
                         if (!isLoading) {
                             isLoading = true
 
                             if (registeredState) {
+
                                 android.util.Log.e(
                                     "EVENT_REGISTER",
                                     "CANCEL BUTTON CLICKED: eventId=${event.id}"
                                 )
 
-                                RegistrationRepository.cancelRegistration(event.id) { success, message ->
+                                RegistrationRepository.cancelRegistration(event.id) {
+                                        success, message ->
 
                                     android.util.Log.e(
                                         "EVENT_REGISTER",
@@ -212,12 +233,14 @@ fun EventDetailsScreen(
                                 }
 
                             } else {
+
                                 android.util.Log.e(
                                     "EVENT_REGISTER",
                                     "REGISTER BUTTON CLICKED: eventId=${event.id}"
                                 )
 
-                                RegistrationRepository.registerForEvent(event.id) { success, message ->
+                                RegistrationRepository.registerForEvent(event.id) {
+                                        success, message ->
 
                                     android.util.Log.e(
                                         "EVENT_REGISTER",
@@ -243,6 +266,7 @@ fun EventDetailsScreen(
                     enabled = !isLoading,
                     modifier = Modifier.fillMaxWidth()
                 ) {
+
                     if (isLoading) {
                         CircularProgressIndicator(
                             modifier = Modifier.height(20.dp),
@@ -258,13 +282,24 @@ fun EventDetailsScreen(
                         )
                     }
                 }
+
+                if (registeredState) {
+                    OutlinedButton(
+                        onClick = onRateEvent,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Rate This Event")
+                    }
+                }
             }
         }
     }
 
     if (showDeleteDialog && isAdmin) {
         AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
+            onDismissRequest = {
+                showDeleteDialog = false
+            },
             title = {
                 Text("Delete Event?")
             },
@@ -285,7 +320,9 @@ fun EventDetailsScreen(
             },
             dismissButton = {
                 TextButton(
-                    onClick = { showDeleteDialog = false }
+                    onClick = {
+                        showDeleteDialog = false
+                    }
                 ) {
                     Text("Cancel")
                 }

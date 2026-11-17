@@ -1,3 +1,4 @@
+
 package com.example.eventsphere.navigation
 
 import android.os.Build
@@ -42,6 +43,7 @@ import androidx.navigation.navArgument
 import com.example.eventsphere.data.CampusEvent
 import com.example.eventsphere.screens.admin.AdminDashboardScreen
 import com.example.eventsphere.screens.admin.AdminQrCheckInScreen
+import com.example.eventsphere.screens.admin.AdminRatingsScreen
 import com.example.eventsphere.screens.auth.AccessDeniedScreen
 import com.example.eventsphere.screens.auth.AuthScreen
 import com.example.eventsphere.screens.chat.ChatbotScreen
@@ -51,7 +53,9 @@ import com.example.eventsphere.screens.event.TicketScreen
 import com.example.eventsphere.screens.home.HomeScreen
 import com.example.eventsphere.screens.myevents.MyEventsScreen
 import com.example.eventsphere.screens.profile.ProfileScreen
+import com.example.eventsphere.screens.rating.RatingScreen
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 
@@ -64,12 +68,15 @@ private object Routes {
     const val DETAILS = "details/{eventId}"
     const val EDIT = "edit/{eventId}"
     const val TICKET = "ticket/{eventId}"
+    const val RATING = "rating/{eventId}"
     const val ADMIN_QR_SCANNER = "admin_qr_scanner"
+    const val ADMIN_RATINGS = "admin_ratings"
     const val CHATBOT = "chatbot"
 
     fun details(id: String) = "details/$id"
     fun edit(id: String) = "edit/$id"
     fun ticket(id: String) = "ticket/$id"
+    fun rating(id: String) = "rating/$id"
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -93,7 +100,6 @@ fun AppNavigation() {
         mutableStateOf<Set<String>>(emptySet())
     }
 
-    // Firebase authentication listener
     DisposableEffect(auth) {
 
         val authListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
@@ -107,7 +113,6 @@ fun AppNavigation() {
         }
     }
 
-    // Load user role, events and registrations
     DisposableEffect(user?.uid) {
 
         val uid = user?.uid
@@ -122,9 +127,7 @@ fun AppNavigation() {
         registeredIds = emptySet()
 
         if (uid == null) {
-
             roleLoading = false
-
         } else {
 
             roleListener = db.collection("users")
@@ -132,16 +135,9 @@ fun AppNavigation() {
                 .addSnapshotListener { snapshot, error ->
 
                     if (error != null) {
-
                         isAdmin = false
                         roleLoading = false
-
-                        Log.e(
-                            "EventSphere",
-                            "Failed to load role",
-                            error
-                        )
-
+                        Log.e("EventSphere", "Failed to load role", error)
                     } else {
 
                         val role = snapshot
@@ -159,18 +155,11 @@ fun AppNavigation() {
                     }
                 }
 
-            // Events listener
             eventsListener = db.collection("events")
                 .addSnapshotListener { snapshot, error ->
 
                     if (error != null) {
-
-                        Log.e(
-                            "EventSphere",
-                            "Failed to load events",
-                            error
-                        )
-
+                        Log.e("EventSphere", "Failed to load events", error)
                     } else {
 
                         events = snapshot?.documents?.map { doc ->
@@ -194,19 +183,12 @@ fun AppNavigation() {
                     }
                 }
 
-            // Registration listener
             registrationListener = db.collection("users")
                 .document(uid)
                 .addSnapshotListener { snapshot, error ->
 
                     if (error != null) {
-
-                        Log.e(
-                            "EventSphere",
-                            "Failed to load registrations",
-                            error
-                        )
-
+                        Log.e("EventSphere", "Failed to load registrations", error)
                     } else {
 
                         registeredIds = snapshot
@@ -231,7 +213,6 @@ fun AppNavigation() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
-    // Navigate to the correct screen after authentication
     LaunchedEffect(user?.uid, roleLoading, isAdmin) {
 
         if (user != null && !roleLoading) {
@@ -243,25 +224,19 @@ fun AppNavigation() {
             }
 
             navController.navigate(destination) {
-
                 popUpTo(Routes.HOME) {
                     inclusive = true
                 }
-
                 launchSingleTop = true
             }
         }
     }
 
-    // IMPORTANT: Show login screen when user is not authenticated
     if (user == null) {
-
         AuthScreen()
-
         return
     }
 
-    // Show loading screen while Firebase loads the user role
     if (roleLoading) {
 
         Column(
@@ -282,16 +257,13 @@ fun AppNavigation() {
     }
 
     val mainRoutes = if (isAdmin) {
-
         setOf(
             Routes.HOME,
             Routes.PROFILE,
             Routes.ADMIN,
             Routes.CHATBOT
         )
-
     } else {
-
         setOf(
             Routes.HOME,
             Routes.MY_EVENTS,
@@ -307,11 +279,8 @@ fun AppNavigation() {
             when (currentRoute) {
 
                 Routes.ADMIN -> {
-
                     TopAppBar(
-                        title = {
-                            Text("Admin Dashboard")
-                        },
+                        title = { Text("Admin Dashboard") },
                         navigationIcon = {
                             IconButton(
                                 onClick = {
@@ -329,17 +298,28 @@ fun AppNavigation() {
                     )
                 }
 
-                Routes.CREATE -> {
-
+                Routes.ADMIN_RATINGS -> {
                     TopAppBar(
-                        title = {
-                            Text("Create Event")
-                        },
+                        title = { Text("Student Ratings") },
                         navigationIcon = {
                             IconButton(
-                                onClick = {
-                                    navController.popBackStack()
-                                }
+                                onClick = { navController.popBackStack() }
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back"
+                                )
+                            }
+                        }
+                    )
+                }
+
+                Routes.CREATE -> {
+                    TopAppBar(
+                        title = { Text("Create Event") },
+                        navigationIcon = {
+                            IconButton(
+                                onClick = { navController.popBackStack() }
                             ) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.ArrowBack,
@@ -351,16 +331,11 @@ fun AppNavigation() {
                 }
 
                 Routes.EDIT -> {
-
                     TopAppBar(
-                        title = {
-                            Text("Edit Event")
-                        },
+                        title = { Text("Edit Event") },
                         navigationIcon = {
                             IconButton(
-                                onClick = {
-                                    navController.popBackStack()
-                                }
+                                onClick = { navController.popBackStack() }
                             ) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.ArrowBack,
@@ -394,13 +369,10 @@ fun AppNavigation() {
                                 contentDescription = "Home"
                             )
                         },
-                        label = {
-                            Text("Home")
-                        }
+                        label = { Text("Home") }
                     )
 
                     if (!isAdmin) {
-
                         NavigationBarItem(
                             selected = currentRoute == Routes.MY_EVENTS,
                             onClick = {
@@ -414,9 +386,7 @@ fun AppNavigation() {
                                     contentDescription = "My Events"
                                 )
                             },
-                            label = {
-                                Text("My Events")
-                            }
+                            label = { Text("My Events") }
                         )
                     }
 
@@ -433,13 +403,10 @@ fun AppNavigation() {
                                 contentDescription = "Profile"
                             )
                         },
-                        label = {
-                            Text("Profile")
-                        }
+                        label = { Text("Profile") }
                     )
 
                     if (isAdmin) {
-
                         NavigationBarItem(
                             selected = currentRoute == Routes.ADMIN,
                             onClick = {
@@ -453,9 +420,7 @@ fun AppNavigation() {
                                     contentDescription = "Admin"
                                 )
                             },
-                            label = {
-                                Text("Admin")
-                            }
+                            label = { Text("Admin") }
                         )
                     }
 
@@ -472,9 +437,7 @@ fun AppNavigation() {
                                 contentDescription = "Chatbot"
                             )
                         },
-                        label = {
-                            Text("Chatbot")
-                        }
+                        label = { Text("Chatbot") }
                     )
                 }
             }
@@ -488,7 +451,6 @@ fun AppNavigation() {
             modifier = Modifier.padding(innerPadding)
         ) {
 
-            // Home
             composable(Routes.HOME) {
 
                 HomeScreen(
@@ -524,12 +486,10 @@ fun AppNavigation() {
                 )
             }
 
-            // Chatbot
             composable(Routes.CHATBOT) {
                 ChatbotScreen()
             }
 
-            // My Events
             composable(Routes.MY_EVENTS) {
 
                 if (isAdmin) {
@@ -565,22 +525,18 @@ fun AppNavigation() {
                 }
             }
 
-            // Profile
             composable(Routes.PROFILE) {
 
                 ProfileScreen(
-
                     onBack = {
                         navController.popBackStack()
                     },
-
                     onLogout = {
                         auth.signOut()
                     }
                 )
             }
 
-            // Admin Dashboard
             composable(Routes.ADMIN) {
 
                 if (isAdmin) {
@@ -610,50 +566,53 @@ fun AppNavigation() {
                             navController.navigate(Routes.ADMIN_QR_SCANNER)
                         },
 
+                        onViewRatings = {
+                            navController.navigate(Routes.ADMIN_RATINGS)
+                        },
+
                         isAdmin = isAdmin
                     )
 
                 } else {
-
                     AccessDeniedScreen()
                 }
             }
 
-            // Admin QR Scanner
+            composable(Routes.ADMIN_RATINGS) {
+
+                if (isAdmin) {
+                    AdminRatingsScreen(isAdmin = isAdmin)
+                } else {
+                    AccessDeniedScreen()
+                }
+            }
+
             composable(Routes.ADMIN_QR_SCANNER) {
 
                 if (isAdmin) {
-
                     AdminQrCheckInScreen(
                         onBack = {
                             navController.popBackStack()
                         }
                     )
-
                 } else {
-
                     AccessDeniedScreen()
                 }
             }
 
-            // Create Event
             composable(Routes.CREATE) {
 
                 if (isAdmin) {
-
                     CreateEventScreen(
                         onBack = {
                             navController.popBackStack()
                         }
                     )
-
                 } else {
-
                     AccessDeniedScreen()
                 }
             }
 
-            // Edit Event
             composable(
                 route = Routes.EDIT,
                 arguments = listOf(
@@ -670,23 +629,19 @@ fun AppNavigation() {
 
                     CreateEventScreen(
                         event = event,
-
                         onSaved = {
                             navController.popBackStack()
                         },
-
                         onBack = {
                             navController.popBackStack()
                         }
                     )
 
                 } else {
-
                     AccessDeniedScreen()
                 }
             }
 
-            // Event Details
             composable(
                 route = Routes.DETAILS,
                 arguments = listOf(
@@ -711,30 +666,107 @@ fun AppNavigation() {
                         },
 
                         onRegister = {
+
                             val uid = auth.currentUser?.uid
 
-                            if (uid != null) {
+                            if (uid == null) {
+                                Log.e(
+                                    "EVENT_REGISTER",
+                                    "Registration failed: User not logged in"
+                                )
+                            } else {
+
                                 db.collection("users")
                                     .document(uid)
                                     .update(
                                         "registeredEvents",
-                                        com.google.firebase.firestore.FieldValue
-                                            .arrayUnion(event.id)
+                                        FieldValue.arrayUnion(event.id)
                                     )
+                                    .addOnSuccessListener {
+                                        Log.d(
+                                            "EVENT_REGISTER",
+                                            "Registration successful: ${event.id}"
+                                        )
+                                    }
+                                    .addOnFailureListener { error ->
+                                        Log.e(
+                                            "EVENT_REGISTER",
+                                            "Registration failed",
+                                            error
+                                        )
+                                    }
                             }
                         },
 
                         onCancelRegistration = {
+
                             val uid = auth.currentUser?.uid
 
-                            if (uid != null) {
-                                db.collection("users")
+                            if (uid == null) {
+
+                                Log.e(
+                                    "EVENT_REGISTER",
+                                    "Cancellation failed: User not logged in"
+                                )
+
+                            } else {
+
+                                val userRef = db.collection("users")
                                     .document(uid)
-                                    .update(
-                                        "registeredEvents",
-                                        com.google.firebase.firestore.FieldValue
-                                            .arrayRemove(event.id)
-                                    )
+
+                                Log.d(
+                                    "EVENT_REGISTER",
+                                    "CANCEL BUTTON CLICKED: eventId=${event.id}, uid=$uid"
+                                )
+
+                                userRef.get()
+                                    .addOnSuccessListener { document ->
+
+                                        Log.d(
+                                            "EVENT_REGISTER",
+                                            "User document exists=${document.exists()}, " +
+                                                    "registeredEvents=${document.get("registeredEvents")}"
+                                        )
+
+                                        if (!document.exists()) {
+                                            Log.e(
+                                                "EVENT_REGISTER",
+                                                "User document does not exist"
+                                            )
+                                            return@addOnSuccessListener
+                                        }
+
+                                        userRef.update(
+                                            "registeredEvents",
+                                            FieldValue.arrayRemove(event.id)
+                                        )
+                                            .addOnSuccessListener {
+                                                Log.d(
+                                                    "EVENT_REGISTER",
+                                                    "CANCELLATION SUCCESS: ${event.id}"
+                                                )
+                                            }
+                                            .addOnFailureListener { error ->
+                                                Log.e(
+                                                    "EVENT_REGISTER",
+                                                    "USER DOCUMENT UPDATE DENIED",
+                                                    error
+                                                )
+                                            }
+                                    }
+                                    .addOnFailureListener { error ->
+                                        Log.e(
+                                            "EVENT_REGISTER",
+                                            "USER DOCUMENT READ DENIED",
+                                            error
+                                        )
+                                    }
+                            }
+                        },
+
+                        onRateEvent = {
+                            if (!isAdmin && event.id in registeredIds) {
+                                navController.navigate(Routes.rating(event.id))
                             }
                         },
 
@@ -749,6 +781,19 @@ fun AppNavigation() {
                                 db.collection("events")
                                     .document(event.id)
                                     .delete()
+                                    .addOnSuccessListener {
+                                        Log.d(
+                                            "EventSphere",
+                                            "Event deleted: ${event.id}"
+                                        )
+                                    }
+                                    .addOnFailureListener { error ->
+                                        Log.e(
+                                            "EventSphere",
+                                            "Event deletion failed",
+                                            error
+                                        )
+                                    }
 
                                 navController.popBackStack()
                             }
@@ -756,12 +801,37 @@ fun AppNavigation() {
                     )
 
                 } else {
-
                     Text("Event not found")
                 }
             }
 
-            // Ticket
+            composable(
+                route = Routes.RATING,
+                arguments = listOf(
+                    navArgument("eventId") {
+                        type = NavType.StringType
+                    }
+                )
+            ) { entry ->
+
+                val eventId = entry.arguments?.getString("eventId")
+                val event = events.find { it.id == eventId }
+
+                if (event != null && !isAdmin && event.id in registeredIds) {
+
+                    RatingScreen(
+                        eventId = event.id,
+                        eventTitle = event.title,
+                        onBack = {
+                            navController.popBackStack()
+                        }
+                    )
+
+                } else {
+                    Text("Event not found or you are not registered.")
+                }
+            }
+
             composable(
                 route = Routes.TICKET,
                 arguments = listOf(
@@ -784,7 +854,6 @@ fun AppNavigation() {
                     )
 
                 } else {
-
                     Text("Ticket not found")
                 }
             }
